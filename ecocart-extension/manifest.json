@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "EcoCart",
+  "version": "1.0.0",
+  "description": "Eco-friendly shopping assistant for Amazon and Flipkart",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.amazon.in/*",
+    "https://www.amazon.com/*",
+    "https://www.flipkart.com/*",
+    "http://localhost:8080/*",
+    "https://*.cloudfunctions.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.in/*/dp/*",
+        "https://www.amazon.com/*/dp/*",
+        "https://www.flipkart.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "EcoCart - Sustainability Assistant"
+  }
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="logo">🌱 EcoCart</div>
+    <p class="tagline">Shop sustainably</p>
+  </header>
+
+  <main id="content">
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>Analyzing product...</p>
+    </div>
+
+    <div id="product-section" class="hidden">
+      <div class="product-name" id="product-name"></div>
+      
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon">🌍</div>
+          <div class="metric-value" id="carbon-value">--</div>
+          <div class="metric-label">Carbon Footprint</div>
+          <div class="metric-unit">kg CO₂</div>
+        </div>
+        
+        <div class="metric-card">
+          <div class="metric-icon">💧</div>
+          <div class="metric-value" id="water-value">--</div>
+          <div class="metric-label">Water Usage</div>
+          <div class="metric-unit">liters</div>
+        </div>
+      </div>
+
+      <div class="score-section">
+        <div class="score-header">
+          <span>Sustainability Score</span>
+          <span class="score-value" id="score-value">--</span>
+        </div>
+        <div class="score-bar">
+          <div class="score-fill" id="score-fill"></div>
+        </div>
+        <div class="score-labels">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <div id="score-breakdown" class="score-breakdown hidden"></div>
+
+      <div id="eco-details" class="eco-details hidden"></div>
+
+      <div id="recommendations" class="recommendations hidden"></div>
+
+      <div class="alternatives-section">
+        <h3>🌿 Greener Alternatives</h3>
+        <div id="alternatives-list">
+          <p class="no-alternatives">No alternatives found</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="error-section" class="hidden">
+      <div class="error-icon">⚠️</div>
+      <p id="error-message">Unable to analyze this product.</p>
+      <button id="retry-btn" class="retry-button">Try Again</button>
+    </div>
+  </main>
+
+  <footer>
+    <a href="#" id="learn-more">Learn about our methodology</a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

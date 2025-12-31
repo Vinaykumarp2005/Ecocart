@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const functions = require('@google-cloud/functions-framework');
 const { 
   getProductData, 
@@ -16,6 +18,10 @@ const {
   getDemoProduct,
   getAllDemoProducts
 } = require('./demoData');
+
+console.log('Environment check:');
+console.log('- GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'Set (length: ' + process.env.GEMINI_API_KEY.length + ')' : 'NOT SET');
+console.log('- GOOGLE_CLOUD_PROJECT:', process.env.GOOGLE_CLOUD_PROJECT || 'NOT SET');
 
 // Product category sustainability baselines (example data)
 const categoryBaselines = {
@@ -76,10 +82,16 @@ functions.http('getSustainabilityData', async (req, res) => {
       return;
     }
 
+    console.log('\n========================================');
+    console.log('Processing product:', name);
+    console.log('Brand:', brand);
+    console.log('Category:', category);
+    console.log('========================================\n');
+
     // Check for demo product first
     const demoProduct = getDemoProduct(name);
     if (demoProduct) {
-      console.log('Returning demo data for:', name);
+      console.log('✓ Returning demo data for:', name);
       
       // Calculate eco score for demo product
       const ecoScore = calculateEcoScore({
@@ -108,11 +120,11 @@ functions.http('getSustainabilityData', async (req, res) => {
       });
     }
 
-    // Check Firestore cache first
+    // Check cache
     const cachedData = await getProductData(name);
     
     if (cachedData.found && !cachedData.stale) {
-      console.log('Returning cached data for:', name);
+      console.log('✓ Returning cached data for:', name);
       const data = cachedData.data;
       
       return res.status(200).json({
@@ -124,6 +136,7 @@ functions.http('getSustainabilityData', async (req, res) => {
     }
 
     // Use Gemini AI for estimation
+    console.log('→ Calling Gemini AI for:', name);
     let sustainabilityData = await estimateEnvironmentalImpact({
       name,
       brand,
@@ -132,9 +145,10 @@ functions.http('getSustainabilityData', async (req, res) => {
       description
     });
 
-    // Fallback to rule-based calculation if Gemini fails
-    if (!sustainabilityData) {
-      console.log('Gemini failed, using fallback calculation');
+    if (sustainabilityData) {
+      console.log('✓ Gemini returned data:', JSON.stringify(sustainabilityData, null, 2));
+    } else {
+      console.log('✗ Gemini failed, using fallback calculation');
       sustainabilityData = calculateSustainability({
         name,
         brand,
@@ -204,7 +218,7 @@ functions.http('getSustainabilityData', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing request:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080"; // Change to your Cloud Function URL for production
+const API_BASE_URL = "https://us-central1-deft-strata-482910-u9.cloudfunctions.net"
 // const API_BASE_URL = "https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

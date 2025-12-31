@@ -20,16 +20,13 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.amazon.in/*/dp/*",
-        "https://www.amazon.com/*/dp/*",
+        "https://www.amazon.in/*",
+        "https://www.amazon.com/*",
         "https://www.flipkart.com/*"
       ],
       "js": ["content.js"],
-      "css": ["content.css"]
+      "css": ["content.css"],
+      "run_at": "document_idle"
     }
-  ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "EcoCart - Sustainability Assistant"
-  }
+  ]
 }

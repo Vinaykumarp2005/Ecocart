@@ -4,13 +4,13 @@
   "description": "EcoCart sustainability data API",
   "main": "index.js",
   "scripts": {
-    "start": "npx @google-cloud/functions-framework --target=getSustainabilityData",
+    "start": "npx @google-cloud/functions-framework --target=getSustainabilityData --port=8080",
     "deploy": "gcloud functions deploy getSustainabilityData --runtime nodejs18 --trigger-http --allow-unauthenticated --set-env-vars GEMINI_API_KEY=your-api-key"
   },
   "dependencies": {
     "@google-cloud/functions-framework": "^3.3.0",
-    "@google/generative-ai": "^0.2.1",
-    "firebase-admin": "^11.11.0"
+    "@google/generative-ai": "^0.24.0",
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": ">=18.0.0"

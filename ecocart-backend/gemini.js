@@ -8,37 +8,36 @@ if (!apiKey) {
   console.error('WARNING: GEMINI_API_KEY not found in environment variables!');
 }
 
+// === QUOTA CONTROL: Set to false to skip Gemini API calls ===
+// Set GEMINI_ENABLED=false in .env when quota is exhausted
+const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
+
+if (!GEMINI_ENABLED) {
+  console.log('⚠️ Gemini API is DISABLED (GEMINI_ENABLED=false). Using fallback calculations only.');
+}
+
 const genAI = new GoogleGenerativeAI(apiKey);
 
 /**
  * Estimate environmental impact using Gemini AI
  */
 async function estimateEnvironmentalImpact(productData) {
+  // Skip Gemini if disabled (quota exhausted)
+  if (!GEMINI_ENABLED) {
+    console.log('Gemini disabled, using fallback');
+    return null;
+  }
+
   if (!apiKey) {
     console.error('Gemini API key not configured');
     return null;
   }
 
   try {
-    // Try different model names in order of preference
-    const modelNames = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-    let model;
-    let lastError;
-
-    for (const modelName of modelNames) {
-      try {
-        model = genAI.getGenerativeModel({ model: modelName });
-        console.log(`Using Gemini model: ${modelName}`);
-        break;
-      } catch (e) {
-        lastError = e;
-        console.log(`Model ${modelName} not available, trying next...`);
-      }
-    }
-
-    if (!model) {
-      throw lastError || new Error('No Gemini model available');
-    }
+    // Use current Gemini model (2026)
+    const modelName = 'gemini-2.0-flash';
+    console.log(`Using Gemini model: ${modelName}`);
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const prompt = `
 You are an environmental sustainability expert. Analyze the following product and estimate its environmental impact.
@@ -123,7 +122,7 @@ async function suggestAlternatives(productData, currentScore) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const prompt = `
 You are a sustainable shopping advisor in India. Suggest 3 more eco-friendly alternatives to this product.

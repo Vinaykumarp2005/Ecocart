@@ -1,10 +1,68 @@
 (function() {
   console.log("EcoCart: Content script loaded");
 
+  // For local testing:
   const API_BASE_URL = "http://localhost:8080";
+  // For production (after deploying):
   // const API_BASE_URL = "https://us-central1-deft-strata-482910-u9.cloudfunctions.net";
 
+  // === API Call Prevention: ASIN-based tracking, request locking, and debouncing ===
+  let lastProcessedASIN = null;      // Track last analyzed ASIN (not product title)
+  let isRequestInProgress = false;   // Lock to prevent concurrent requests
+  let debounceTimer = null;          // Timer for debouncing
+  const DEBOUNCE_DELAY = 1500;       // 1.5 second debounce delay
+
+  /**
+   * Extract Amazon ASIN from URL or page elements
+   * ASIN is a 10-character alphanumeric identifier
+   */
+  function getAmazonASIN() {
+    // Method 1: Extract from URL (most reliable)
+    // Patterns: /dp/ASIN, /gp/product/ASIN, /product/ASIN
+    const urlPatterns = [
+      /\/dp\/([A-Z0-9]{10})/i,
+      /\/gp\/product\/([A-Z0-9]{10})/i,
+      /\/product\/([A-Z0-9]{10})/i,
+      /\/ASIN\/([A-Z0-9]{10})/i
+    ];
+    
+    const url = window.location.href;
+    for (const pattern of urlPatterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1].toUpperCase();
+      }
+    }
+
+    // Method 2: Get from hidden input field on page
+    const asinInput = document.getElementById('ASIN') || 
+                      document.querySelector('input[name="ASIN"]');
+    if (asinInput?.value) {
+      return asinInput.value.toUpperCase();
+    }
+
+    // Method 3: Get from data attributes
+    const asinElement = document.querySelector('[data-asin]');
+    if (asinElement?.dataset?.asin) {
+      return asinElement.dataset.asin.toUpperCase();
+    }
+
+    // Method 4: Get from product detail form
+    const detailForm = document.getElementById('addToCart');
+    if (detailForm) {
+      const formAsin = detailForm.querySelector('input[name="ASIN"]');
+      if (formAsin?.value) {
+        return formAsin.value.toUpperCase();
+      }
+    }
+
+    console.log("EcoCart: Could not extract ASIN from page");
+    return null;
+  }
+
   function getAmazonProductInfo() {
+    const asin = getAmazonASIN();
+    
     const title = 
       document.getElementById("productTitle")?.innerText?.trim() ||
       document.querySelector("#title span")?.innerText?.trim() ||
@@ -37,7 +95,7 @@
 
     const description = bulletPoints.join(". ").substring(0, 1500);
 
-    return { name: title, price, brand, category, description, platform: "amazon" };
+    return { asin, name: title, price, brand, category, description, platform: "amazon" };
   }
 
   function getFlipkartProductInfo() {
@@ -213,7 +271,8 @@
     document.getElementById('ecocart-retry')?.addEventListener('click', () => {
       document.getElementById('ecocart-loading').classList.remove('hidden');
       document.getElementById('ecocart-error').classList.add('hidden');
-      fetchAndDisplayData();
+      // Force refresh bypasses the duplicate check
+      fetchAndDisplayData(true);
     });
 
     return widget;
@@ -238,21 +297,23 @@
     document.getElementById('ecocart-water').textContent = data.waterUsage ?? '--';
     document.getElementById('ecocart-packaging').textContent = data.packagingType || 'unknown';
 
-    // Score
+    // Score with grade-based color
     const score = data.sustainabilityScore || data.ecoScore?.totalScore || 50;
     const rating = getScoreRating(score);
-    document.getElementById('ecocart-score-text').textContent = `${rating} (${score}/100)`;
+    const scoreElement = document.getElementById('ecocart-score-text');
+    scoreElement.textContent = `${rating} (${score}/100)`;
+    
+    // Apply grade-based color class
+    scoreElement.className = 'score-value score-grade-' + rating.toLowerCase();
+    
     document.getElementById('ecocart-score-fill').style.width = `${score}%`;
 
-    // Breakdown
+    // Breakdown with dynamic bar colors
     const breakdown = data.ecoScore?.breakdown;
     if (breakdown) {
-      document.getElementById('carbon-fill').style.width = `${breakdown.carbon?.score || 50}%`;
-      document.getElementById('carbon-score').textContent = breakdown.carbon?.score || 50;
-      document.getElementById('water-fill').style.width = `${breakdown.water?.score || 50}%`;
-      document.getElementById('water-score').textContent = breakdown.water?.score || 50;
-      document.getElementById('packaging-fill').style.width = `${breakdown.packaging?.score || 50}%`;
-      document.getElementById('packaging-score').textContent = breakdown.packaging?.score || 50;
+      updateBreakdownBar('carbon', breakdown.carbon?.score || 50);
+      updateBreakdownBar('water', breakdown.water?.score || 50);
+      updateBreakdownBar('packaging', breakdown.packaging?.score || 50);
     }
 
     // Eco features
@@ -315,6 +376,27 @@
     return 'E';
   }
 
+  // Helper function to update breakdown bars with score-based colors
+  function updateBreakdownBar(type, score) {
+    const fill = document.getElementById(`${type}-fill`);
+    const value = document.getElementById(`${type}-score`);
+    
+    if (fill) {
+      fill.style.width = `${score}%`;
+      // Color based on score
+      if (score >= 70) {
+        fill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+      } else if (score >= 40) {
+        fill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+      } else {
+        fill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+      }
+    }
+    if (value) {
+      value.textContent = score;
+    }
+  }
+
   async function fetchSustainabilityData(productData) {
     const response = await fetch(`${API_BASE_URL}/getSustainabilityData`, {
       method: "POST",
@@ -328,13 +410,34 @@
     return data;
   }
 
-  async function fetchAndDisplayData() {
+  async function fetchAndDisplayData(forceRefresh = false) {
     const productInfo = getProductInfo();
     
-    if (!productInfo.name) {
+    // For Amazon, use ASIN as the unique key; for others, use product name
+    const productKey = productInfo.asin || productInfo.name;
+    
+    if (!productKey) {
+      console.log("EcoCart: No product identifier (ASIN/name) found");
       showWidgetError();
       return;
     }
+
+    // Check if this is the same product by ASIN (prevent duplicate calls)
+    if (!forceRefresh && lastProcessedASIN === productKey) {
+      console.log("EcoCart: Same product (ASIN: " + productKey + "), skipping API call");
+      return;
+    }
+
+    // Check if a request is already in progress (request locking)
+    if (isRequestInProgress) {
+      console.log("EcoCart: Request already in progress, skipping");
+      return;
+    }
+
+    // Lock the request and store the ASIN
+    isRequestInProgress = true;
+    lastProcessedASIN = productKey;
+    console.log("EcoCart: Fetching data for ASIN:", productKey, "Product:", productInfo.name);
 
     try {
       const data = await fetchSustainabilityData(productInfo);
@@ -342,7 +445,35 @@
     } catch (error) {
       console.error("EcoCart: API error:", error);
       showWidgetError();
+      // Reset lastProcessedASIN on error so user can retry
+      if (!forceRefresh) {
+        lastProcessedASIN = null;
+      }
+    } finally {
+      // Release the lock
+      isRequestInProgress = false;
     }
+  }
+
+  // Debounced version of fetchAndDisplayData for MutationObserver
+  function debouncedFetchAndDisplayData(forceRefresh = false) {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      fetchAndDisplayData(forceRefresh);
+    }, DEBOUNCE_DELAY);
+  }
+
+  // Check if product has changed by comparing ASIN (not title)
+  function hasProductChanged() {
+    const currentASIN = getAmazonASIN();
+    // Only consider it changed if we have a valid ASIN and it's different
+    if (currentASIN && currentASIN !== lastProcessedASIN) {
+      console.log("EcoCart: ASIN changed from", lastProcessedASIN, "to", currentASIN);
+      return true;
+    }
+    return false;
   }
 
   function init() {
@@ -351,12 +482,20 @@
       return;
     }
 
-    // Wait for page to fully load
+    // Clear any pending debounce timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+
+    // Wait for page to fully load then inject widget
     setTimeout(() => {
       console.log("EcoCart: Injecting widget");
-      injectEcoCartWidget();
-      fetchAndDisplayData();
-    }, 1500);
+      const widget = injectEcoCartWidget();
+      if (widget) {
+        fetchAndDisplayData();
+      }
+    }, 1000);
   }
 
   // Run on page load
@@ -366,12 +505,40 @@
     init();
   }
 
-  // Also handle SPA navigation
+  // Handle SPA navigation and dynamic page updates with debouncing
   let lastUrl = location.href;
-  new MutationObserver(() => {
+  const pageObserver = new MutationObserver(() => {
+    // Check for URL change (SPA navigation)
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      setTimeout(init, 1500);
+      console.log("EcoCart: URL changed, reinitializing");
+      // Reset state for new page
+      lastProcessedASIN = null;
+      isRequestInProgress = false;
+      
+      // Remove old widget
+      const oldWidget = document.getElementById('ecocart-widget');
+      if (oldWidget) oldWidget.remove();
+      
+      // Debounced init for new page
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(init, DEBOUNCE_DELAY);
+      return;
     }
-  }).observe(document.body, { subtree: true, childList: true });
+
+    // Check for ASIN change on same URL (should be rare, but handle it)
+    // Note: DOM changes that don't affect ASIN will NOT trigger API calls
+    if (hasProductChanged() && !isRequestInProgress) {
+      console.log("EcoCart: ASIN changed on same page, updating");
+      debouncedFetchAndDisplayData();
+    }
+  });
+
+  // Start observing with optimized settings
+  pageObserver.observe(document.body, { 
+    subtree: true, 
+    childList: true,
+    characterData: false,  // Don't trigger on text changes
+    attributes: false      // Don't trigger on attribute changes
+  });
 })();

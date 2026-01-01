@@ -1,8 +1,5 @@
-// For local testing, use:
-const API_BASE_URL = "http://localhost:8080";
-
-// For production, replace 'your-project-id' with your actual GCP project ID:
-// const API_BASE_URL = "https://us-central1-YOUR_ACTUAL_PROJECT_ID.cloudfunctions.net";
+// Google Cloud Function URL
+const API_BASE_URL = "https://us-central1-deft-strata-482910-u9.cloudfunctions.net";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const loading = document.getElementById("loading");
